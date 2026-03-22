@@ -1,5 +1,5 @@
-'use client';
-import { useEffect, useState, useCallback } from 'react';
+"use client";
+import React, { useEffect, useState, useCallback } from 'react';
 
 const API    = process.env.NEXT_PUBLIC_COLLECTOR_URL || 'http://localhost:3001';
 const SECRET = process.env.NEXT_PUBLIC_COLLECTOR_KEY || 'esq2026';
@@ -8,13 +8,13 @@ const USINA  = process.env.NEXT_PUBLIC_USINA_ID      || '';
 const headers = { 'x-api-key': SECRET };
 
 const STATUS_COR = {
-  OK:                         'text-green-400',
-  LOGIN:                      'text-blue-400',
-  DOWNLOAD:                   'text-yellow-400',
-  OCR:                        'text-purple-400',
-  ERRO_CREDENCIAIS_INVALIDAS: 'text-red-500',
-  ALERTA_LAYOUT_ALTERADO:     'text-orange-500',
-  ERRO:                       'text-red-400',
+  OK:                         'var(--success)',
+  LOGIN:                      'var(--info)',
+  DOWNLOAD:                   'var(--warning)',
+  OCR:                        'var(--primary)',
+  ERRO_CREDENCIAIS_INVALIDAS: 'var(--danger)',
+  ALERTA_LAYOUT_ALTERADO:     '#f97316',
+  ERRO:                       'var(--danger-bg)',
 };
 
 export default function ColetaPage() {
@@ -91,139 +91,160 @@ export default function ColetaPage() {
 
   if (!USINA) {
     return (
-      <div className="p-8 text-yellow-400">
-        ⚠️ Configure <code>NEXT_PUBLIC_USINA_ID</code> no <code>.env.local</code>
+      <div className="empty-state glass">
+        <div className="empty-state-icon">⚠️</div>
+        <div className="empty-state-text">Usina não configurada</div>
+        <div className="empty-state-hint">Configure <code>NEXT_PUBLIC_USINA_ID</code> no <code>.env.local</code> para habilitar o robô de coleta.</div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <header className="page-header">
         <div>
-          <h1 className="text-2xl font-bold">Coleta de Faturas</h1>
-          <span className={`text-sm ${wsOk ? 'text-green-400' : 'text-gray-500'}`}>
-            {wsOk ? '● WebSocket conectado' : '○ WebSocket desconectado'}
-          </span>
+          <h1 className="page-title">Coleta de Faturas</h1>
+          <p className="page-subtitle" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span className={`status-dot ${wsOk ? 'active' : ''}`} style={{ background: wsOk ? 'var(--success)' : 'var(--danger-bg)' }} />
+            {wsOk ? 'WebSocket Conectado — Monitoramento ao vivo' : 'WebSocket Desconectado'}
+          </p>
         </div>
         <button
           onClick={iniciarColeta}
           disabled={coletando}
-          className="px-6 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-lg font-semibold transition"
+          className="btn btn-primary"
+          style={{ gap: "8px" }}
         >
-          {coletando ? 'Coletando...' : '⚡ Iniciar Coleta'}
+          {coletando ? (
+            <><span className="spinner" /> Processando...</>
+          ) : (
+            '⚡ Iniciar Coleta Manual'
+          )}
         </button>
-      </div>
+      </header>
 
       {/* Resumo */}
       {resumo && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Clientes',          valor: resumo.total_clientes },
-            { label: 'Faturas este mês',  valor: resumo.faturas_mes_atual },
-            { label: 'Valor total',        valor: `R$ ${Number(resumo.valor_total_mes||0).toFixed(2)}` },
-            { label: 'Energia compensada', valor: `${Number(resumo.energia_compensada_total||0).toFixed(0)} kWh` },
-          ].map(c => (
-            <div key={c.label} className="bg-gray-800 rounded-xl p-4">
-              <p className="text-gray-400 text-sm">{c.label}</p>
-              <p className="text-2xl font-bold mt-1">{c.valor ?? '—'}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+          <div className="glass-card kpi-card">
+            <span className="kpi-label">👥 Clientes</span>
+            <div className="kpi-value">{resumo.total_clientes}</div>
+          </div>
+          <div className="glass-card kpi-card">
+            <span className="kpi-label">📄 Faturas este mês</span>
+            <div className="kpi-value">{resumo.faturas_mes_atual}</div>
+          </div>
+          <div className="glass-card kpi-card">
+            <span className="kpi-label">💰 Valor Total</span>
+            <div className="kpi-value" style={{ color: "var(--primary)" }}>
+              {Number(resumo.valor_total_mes || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </div>
-          ))}
+          </div>
+          <div className="glass-card kpi-card">
+            <span className="kpi-label">⚡ Energia Compensada</span>
+            <div className="kpi-value">{Number(resumo.energia_compensada_total || 0).toFixed(0)} kWh</div>
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* Log ao vivo */}
-        <div className="bg-gray-900 rounded-xl p-4">
-          <h2 className="font-semibold mb-3">Log ao vivo</h2>
-          <div className="space-y-1 max-h-64 overflow-y-auto font-mono text-sm">
-            {eventos.length === 0 && (
-              <p className="text-gray-500">Aguardando coleta...</p>
+      {/* Logs e Histórico (Grid 50/50) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" }}>
+        
+        {/* Log ao vivo (WebSocket) */}
+        <div className="glass" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", minHeight: "350px", maxHeight: "350px" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Log de Coleta ao Vivo</h3>
+          <div style={{ 
+            flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px",
+            fontFamily: "monospace", fontSize: "0.85rem", background: "rgba(0,0,0,0.2)",
+            padding: "16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)"
+          }}>
+            {eventos.length === 0 ? (
+              <div style={{ color: "var(--text-muted)", margin: "auto" }}>Aguardando inicialização da coleta...</div>
+            ) : (
+              eventos.map((e, i) => (
+                <div key={i} style={{ display: "flex", gap: "12px", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "6px" }}>
+                  <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>{e.ts}</span>
+                  <span style={{ fontWeight: 600, color: STATUS_COR[e.ev] || 'var(--text-primary)', flexShrink: 0, minWidth: "120px" }}>
+                    [{e.ev}]
+                  </span>
+                  <span style={{ color: "rgba(255,255,255,0.85)", wordBreak: "break-all" }}>{e.msg}</span>
+                </div>
+              ))
             )}
-            {eventos.map((e, i) => (
-              <div key={i} className="flex gap-2">
-                <span className="text-gray-500 shrink-0">{e.ts}</span>
-                <span className={`font-bold shrink-0 ${STATUS_COR[e.ev] || 'text-gray-300'}`}>
-                  [{e.ev}]
-                </span>
-                <span className="text-gray-300 truncate">{e.msg}</span>
-              </div>
-            ))}
           </div>
         </div>
 
-        {/* Logs do banco */}
-        <div className="bg-gray-900 rounded-xl p-4">
-          <h2 className="font-semibold mb-3">Histórico de coletas</h2>
-          <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
-            {logs.map(l => (
-              <div key={l.id} className="flex gap-2 items-start">
-                <span className="text-gray-500 shrink-0 text-xs pt-0.5">
-                  {new Date(l.criado_em).toLocaleDateString('pt-BR')}
-                </span>
-                <span className={`shrink-0 ${l.status === 'concluido' ? 'text-green-400' : l.status.includes('erro') ? 'text-red-400' : 'text-yellow-400'}`}>
-                  {l.status}
-                </span>
-                <span className="text-gray-400 truncate">{l.cliente_nome || '—'}</span>
+        {/* Histórico de Coletas do Banco */}
+        <div className="glass" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", minHeight: "350px", maxHeight: "350px" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Histórico do Robô</h3>
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", paddingRight: "8px" }}>
+            {logs.length === 0 ? (
+              <div className="empty-state" style={{ padding: "20px" }}>
+                <div className="empty-state-text" style={{ fontSize: "0.9rem" }}>Sem histórico de runs</div>
               </div>
-            ))}
+            ) : (
+              logs.map(l => (
+                <div key={l.id} style={{ display: "flex", alignItems: "center", gap: "12px", background: "rgba(255,255,255,0.02)", padding: "10px 14px", borderRadius: "8px" }}>
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.8rem", width: "90px" }}>
+                    {new Date(l.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className={`badge ${l.status === 'concluido' ? 'badge-success' : l.status.includes('erro') ? 'badge-warning' : 'badge-info'}`}>
+                    {l.status}
+                  </span>
+                  <span style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {l.cliente_nome || 'Lote/Desconhecido'}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
-
       </div>
 
-      {/* Tabela de faturas */}
-      <div className="bg-gray-900 rounded-xl p-4">
-        <h2 className="font-semibold mb-3">Faturas coletadas</h2>
+      {/* Tabela de Faturas */}
+      <div className="glass" style={{ padding: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Faturas Processadas (OCR)</h3>
         {faturas.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nenhuma fatura coletada ainda.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-400 text-left border-b border-gray-700">
-                  <th className="pb-2 pr-4">Cliente</th>
-                  <th className="pb-2 pr-4">UC</th>
-                  <th className="pb-2 pr-4">Mês</th>
-                  <th className="pb-2 pr-4">Valor</th>
-                  <th className="pb-2 pr-4">Compensado</th>
-                  <th className="pb-2 pr-4">Canal</th>
-                  <th className="pb-2">PDF</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {faturas.map(f => (
-                  <tr key={f.id} className="hover:bg-gray-800 transition">
-                    <td className="py-2 pr-4">{f.cliente_nome}</td>
-                    <td className="py-2 pr-4 font-mono text-xs">{f.codigo_uc}</td>
-                    <td className="py-2 pr-4">{f.mes_referencia?.slice(0, 7)}</td>
-                    <td className="py-2 pr-4">R$ {Number(f.valor_total||0).toFixed(2)}</td>
-                    <td className="py-2 pr-4">{Number(f.energia_compensada_kwh||0).toFixed(0)} kWh</td>
-                    <td className="py-2 pr-4">
-                      <span className="px-2 py-0.5 rounded text-xs bg-gray-700">
-                        {f.canal_origem}
-                      </span>
-                    </td>
-                    <td className="py-2">
-                      {f.pdf_path ? (
-                        <a
-                          href={`${API}/api/faturas/${f.id}/download?api_key=${SECRET}`}
-                          className="text-blue-400 hover:underline text-xs"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          ↓ PDF
-                        </a>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="empty-state">
+            <div className="empty-state-icon">📄</div>
+            <div className="empty-state-text">Nenhuma fatura coletada e validada</div>
+            <div className="empty-state-hint">Conecte o microserviço e clique em "Iniciar Coleta" para varrer o portal COELBA.</div>
           </div>
+        ) : (
+          <>
+            <div className="table-header" style={{ gridTemplateColumns: "1.5fr 1fr 0.8fr 1fr 1fr 1fr 0.5fr" }}>
+              <span>Cliente</span><span>UC</span><span>Mês Ref</span><span>Valor</span><span>Compensado</span><span>Canal/Origem</span><span>Anexo</span>
+            </div>
+            {faturas.map(f => (
+              <div key={f.id} className="table-row" style={{ gridTemplateColumns: "1.5fr 1fr 0.8fr 1fr 1fr 1fr 0.5fr" }}>
+                <span style={{ fontWeight: 500 }}>{f.cliente_nome}</span>
+                <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem", fontFamily: "monospace" }}>{f.codigo_uc}</span>
+                <span>{f.mes_referencia ? `${f.mes_referencia.slice(5,7)}/${f.mes_referencia.slice(0,4)}` : '—'}</span>
+                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                  {Number(f.valor_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+                <span style={{ color: "var(--primary)" }}>{Number(f.energia_compensada_kwh || 0).toFixed(0)} kWh</span>
+                <span className="badge badge-info" style={{ width: "fit-content" }}>{f.canal_origem || '—'}</span>
+                <span style={{ display: "flex", justifyContent: "center" }}>
+                  {f.pdf_path ? (
+                    <a
+                      href={`${API}/api/faturas/${f.id}/download?api_key=${SECRET}`}
+                      target="_blank" rel="noreferrer"
+                      style={{
+                        padding: "4px 8px", background: "rgba(59, 130, 246, 0.15)", color: "var(--info)",
+                        borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, transition: "all 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = "rgba(59, 130, 246, 0.3)"}
+                      onMouseLeave={(e) => e.target.style.background = "rgba(59, 130, 246, 0.15)"}
+                    >
+                      PDF
+                    </a>
+                  ) : <span style={{ opacity: 0.3 }}>—</span>}
+                </span>
+              </div>
+            ))}
+          </>
         )}
       </div>
 
