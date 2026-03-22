@@ -1,108 +1,238 @@
-import Link from "next/link";
-import Image from "next/image";
+"use client";
+import React, { useState, useEffect } from 'react';
 
 export default function Dashboard() {
-  return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-darker)" }}>
-      {/* Sidebar */}
-      <aside className="glass" style={{
-        width: "250px", padding: "2rem 1.5rem", borderRight: "1px solid var(--glass-border)",
-        display: "flex", flexDirection: "column", gap: "2rem",
-        background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(20px)"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <Image src="/logo.jpeg" alt="Logo" width={32} height={32} style={{ borderRadius: "6px" }} />
-          <span style={{ fontWeight: 800, fontSize: "1rem" }}>ESQ ENERGIA</span>
+  const [usinas, setUsinas] = useState([]);
+  const [medicoes, setMedicoes] = useState([]);
+  const [faturas, setFaturas] = useState([]);
+  const [ucs, setUcs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedUC, setSelectedUC] = useState(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/usinas').then(r => r.json()).catch(() => []),
+      fetch('/api/medicoes').then(r => r.json()).catch(() => []),
+      fetch('/api/faturas').then(r => r.json()).catch(() => []),
+      fetch('/api/ucs').then(r => r.json()).catch(() => []),
+    ]).then(([u, m, f, c]) => {
+      setUsinas(Array.isArray(u) ? u : []);
+      setMedicoes(Array.isArray(m) ? m : []);
+      setFaturas(Array.isArray(f) ? f : []);
+      setUcs(Array.isArray(c) ? c : []);
+      setLoading(false);
+    });
+  }, []);
+
+  const totalGeracao = medicoes.reduce((acc, m) => acc + Number(m.geracao_kwh || 0), 0);
+  const totalConsumo = faturas.reduce((acc, f) => acc + Number(f.consumo_kwh || 0), 0);
+  const totalCompensado = faturas.reduce((acc, f) => acc + Number(f.creditos_compensados_kwh || 0), 0);
+  const saldoCreditos = totalGeracao - totalConsumo;
+  const TARIFA = 0.85;
+  const faturamentoEstimado = totalCompensado * TARIFA;
+
+  const now = new Date();
+  const mesAtual = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  // Dados para gráfico de barras por usina
+  const geracaoPorUsina = usinas.map(u => {
+    const total = medicoes
+      .filter(m => m.usina_id === u.id)
+      .reduce((acc, m) => acc + Number(m.geracao_kwh || 0), 0);
+    return { nome: u.nome, total };
+  });
+  const maxGeracao = Math.max(...geracaoPorUsina.map(g => g.total), 1);
+
+  const SkeletonBlock = ({ w, h }) => (
+    <div className="skeleton" style={{ width: w || '100%', height: h || 14 }} />
+  );
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1 }}>
+        <div style={{ marginBottom: "2rem" }}>
+          <SkeletonBlock w="300px" h="28px" />
+          <div style={{ height: 8 }} />
+          <SkeletonBlock w="220px" h="14px" />
         </div>
-
-        <nav style={{ display: "flex", flexDirection: "column", gap: "10px", flex: 1 }}>
-          <div style={{ background: "rgba(16, 185, 129, 0.1)", color: "var(--primary)", padding: "10px", borderRadius: "8px", fontWeight: 600, display: "flex", alignItems: "center", gap: "10px" }}>
-             📊 Dashboard
-          </div>
-          <div style={{ color: "var(--text-secondary)", padding: "10px", cursor: "pointer" }}>🏭 Usinas</div>
-          <div style={{ color: "var(--text-secondary)", padding: "10px", cursor: "pointer" }}>💡 Consumidores</div>
-          <div style={{ color: "var(--text-secondary)", padding: "10px", cursor: "pointer" }}>📄 Faturas</div>
-          <div style={{ color: "var(--text-secondary)", padding: "10px", cursor: "pointer" }}>⚙️ Configurações</div>
-        </nav>
-
-        <Link href="/" style={{ color: "#EF4444", fontSize: "0.9rem", padding: "10px", display: "inline-block" }}>
-          🚪 Sair
-        </Link>
-      </aside>
-
-      {/* Main Content */}
-      <main style={{ flex: 1, padding: "2rem", overflowY: "auto" }}>
-        {/* Header */}
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-          <div>
-            <h1 style={{ fontSize: "1.8rem", fontWeight: 700 }}>Painel do Gerador</h1>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Olá, Henrique. Veja o status das suas usinas hoje.</p>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div className="glass" style={{ padding: "8px 12px", fontSize: "0.85rem", color: "var(--text-primary)" }}>Mês: Março/2026</div>
-            <div style={{ width: "36px", height: "36px", background: "var(--primary)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600 }}>H</div>
-          </div>
-        </header>
-
-        {/* KPI Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "20px", marginBottom: "2.5rem" }}>
-          <div className="glass" style={{ padding: "1.5rem" }}>
-            <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Geração Acumulada</span>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "5px 0" }}>145.2 kWh</h2>
-            <span style={{ color: "var(--primary)", fontSize: "0.75rem" }}>↑ 12% vs mês anterior</span>
-          </div>
-          <div className="glass" style={{ padding: "1.5rem" }}>
-            <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Consumo das UCs</span>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "5px 0" }}>112.5 kWh</h2>
-            <span style={{ color: "#EF4444", fontSize: "0.75rem" }}>↑ 4% vs meta</span>
-          </div>
-          <div className="glass" style={{ padding: "1.5rem" }}>
-            <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Saldo de Créditos</span>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "5px 0", color: "var(--primary)" }}>+32.7 kWh</h2>
-            <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>Pronto para rateio</span>
-          </div>
-          <div className="glass" style={{ padding: "1.5rem" }}>
-            <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Faturamento Estimado</span>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "5px 0" }}>R$ 14.280,00</h2>
-            <span style={{ color: "var(--primary)", fontSize: "0.75rem" }}>Geração de receita</span>
-          </div>
+          {[1,2,3,4].map(i => <div key={i} className="skeleton skeleton-kpi" />)}
         </div>
-
-        {/* Main Grid: Charts & Tables */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "20px" }}>
-          {/* Chart placeholder box */}
-          <div className="glass" style={{ padding: "1.5rem", minHeight: "300px", position: "relative" }}>
-            <h3 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>Acompanhamento de Geração</h3>
-            <div style={{ display: "flex", height: "200px", alignItems: "flex-end", gap: "15px", padding: "10px" }}>
-              {[60, 80, 45, 90, 100, 70, 85].map((h, i) => (
-                <div key={i} style={{ flex: 1, height: `${h}%`, background: "linear-gradient(to top, var(--primary), transparent)", borderRadius: "4px", position: "relative" }}>
-                  <div style={{ position: "absolute", bottom: "-25px", left: "50%", transform: "translateX(-50%)", fontSize: "0.7rem", color: "var(--text-secondary)" }}>U{i+1}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <div className="skeleton" style={{ height: 320 }} />
+          <div className="skeleton" style={{ height: 320 }} />
+        </div>
+      </div>
+    );
+  }
 
-          {/* Unidades Consumidoras mini-table */}
-          <div className="glass" style={{ padding: "1.5rem" }}>
-            <h3 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>Taxas de Rateio (UCs)</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {[
-                { name: "Residencial XPTO", percent: "35%", status: "Ativo" },
-                { name: "Comercial Silva", percent: "25%", status: "Ativo" },
-                { name: "Indústria Delta", percent: "40%", status: "Pendente" }
-              ].map((uc, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", borderBottom: "1px solid var(--glass-border)", fontSize: "0.9rem" }}>
-                  <div>
-                    <span style={{ fontWeight: 600 }}>{uc.name}</span>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Rateio: {uc.percent}</div>
-                  </div>
-                  <span style={{ fontSize: "0.75rem", color: uc.status === 'Ativo' ? 'var(--primary)' : '#F59E0B' }}>{uc.status}</span>
-                </div>
-              ))}
-            </div>
+  const hasData = usinas.length > 0 || medicoes.length > 0 || faturas.length > 0;
+
+  return (
+    <div style={{ flex: 1 }}>
+      {/* Header */}
+      <header className="page-header">
+        <div>
+          <h1 className="page-title">
+            Painel do Gerador
+          </h1>
+          <p className="page-subtitle">
+            Visão geral das suas usinas e créditos — <span style={{ color: "var(--primary)", fontWeight: 600 }}>{mesAtual}</span>
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div className="glass" style={{ padding: "8px 16px", fontSize: "0.82rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span className="status-dot active" />
+            {usinas.length} usina{usinas.length !== 1 ? 's' : ''} ativa{usinas.length !== 1 ? 's' : ''}
           </div>
         </div>
-      </main>
+      </header>
+
+      {/* KPI Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "2rem" }}>
+        <div className="glass-card kpi-card">
+          <span className="kpi-label">⚡ Geração Acumulada</span>
+          <div className="kpi-value" style={{ color: "var(--primary)" }}>
+            {hasData ? `${totalGeracao.toLocaleString('pt-BR')} kWh` : '—'}
+          </div>
+          <span className="kpi-change positive">
+            Todas as usinas
+          </span>
+        </div>
+        <div className="glass-card kpi-card">
+          <span className="kpi-label">🏠 Consumo das UCs</span>
+          <div className="kpi-value">
+            {hasData ? `${totalConsumo.toLocaleString('pt-BR')} kWh` : '—'}
+          </div>
+          <span className="kpi-change" style={{ color: "var(--text-muted)" }}>
+            {ucs.length} unidade{ucs.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="glass-card kpi-card">
+          <span className="kpi-label">💎 Saldo de Créditos</span>
+          <div className="kpi-value" style={{ color: saldoCreditos >= 0 ? "var(--primary)" : "var(--danger)" }}>
+            {hasData ? `${saldoCreditos >= 0 ? '+' : ''}${saldoCreditos.toLocaleString('pt-BR')} kWh` : '—'}
+          </div>
+          <span className="kpi-change" style={{ color: saldoCreditos >= 0 ? "var(--primary)" : "var(--danger)" }}>
+            {saldoCreditos >= 0 ? 'Superávit' : 'Déficit'}
+          </span>
+        </div>
+        <div className="glass-card kpi-card">
+          <span className="kpi-label">💰 Faturamento Estimado</span>
+          <div className="kpi-value">
+            {hasData ? faturamentoEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
+          </div>
+          <span className="kpi-change" style={{ color: "var(--text-muted)" }}>
+            Tarifa R$ {TARIFA.toFixed(2)}/kWh
+          </span>
+        </div>
+      </div>
+
+      {/* Main Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "20px" }}>
+        {/* Chart */}
+        <div className="glass" style={{ padding: "1.5rem", minHeight: "320px" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "8px" }}>
+            📈 Geração por Usina
+          </h3>
+          {geracaoPorUsina.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">📊</div>
+              <div className="empty-state-text">Nenhuma usina cadastrada</div>
+              <div className="empty-state-hint">Cadastre usinas para ver dados aqui.</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", height: "220px", alignItems: "flex-end", gap: "12px", padding: "10px 0" }}>
+              {geracaoPorUsina.map((g, i) => {
+                const pct = maxGeracao > 0 ? (g.total / maxGeracao) * 100 : 0;
+                return (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)" }}>
+                      {g.total > 0 ? `${g.total.toLocaleString('pt-BR')}` : '0'}
+                    </span>
+                    <div style={{
+                      width: "100%", maxWidth: "60px", height: `${Math.max(pct, 4)}%`,
+                      background: `linear-gradient(to top, var(--primary), rgba(16, 185, 129, 0.2))`,
+                      borderRadius: "6px 6px 2px 2px",
+                      transition: "height 0.8s ease-out",
+                      boxShadow: pct > 0 ? "0 0 12px rgba(16, 185, 129, 0.2)" : "none"
+                    }} />
+                    <span style={{
+                      fontSize: "0.68rem", color: "var(--text-secondary)",
+                      textAlign: "center", lineHeight: 1.2, maxWidth: "80px",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                    }}>
+                      {g.nome || `Usina ${i + 1}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* UCs mini-table */}
+        <div className="glass" style={{ padding: "1.5rem" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1.2rem", display: "flex", alignItems: "center", gap: "8px" }}>
+            🏠 Unidades Consumidoras
+          </h3>
+          {ucs.length === 0 ? (
+            <div className="empty-state" style={{ padding: "2rem 1rem" }}>
+              <div className="empty-state-icon">🏠</div>
+              <div className="empty-state-text">Nenhuma UC</div>
+              <div className="empty-state-hint">Cadastre UCs pelo menu lateral.</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {ucs.slice(0, 6).map((uc) => (
+                <div
+                  key={uc.id}
+                  onClick={() => setSelectedUC(selectedUC === uc.id ? null : uc.id)}
+                  style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 12px",
+                    border: selectedUC === uc.id ? "1px solid var(--primary)" : "1px solid var(--glass-border)",
+                    borderRadius: "10px", fontSize: "0.88rem", cursor: "pointer",
+                    background: selectedUC === uc.id ? "var(--primary-subtle)" : "transparent",
+                    transition: "all var(--transition-fast)"
+                  }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>{uc.codigo_uc}</span>
+                    <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2 }}>
+                      {uc.endereco ? uc.endereco.substring(0, 30) : 'Sem endereço'}
+                    </div>
+                  </div>
+                  <span className={`badge badge-success`}>Ativa</span>
+                </div>
+              ))}
+              {ucs.length > 6 && (
+                <div style={{ textAlign: "center", fontSize: "0.78rem", color: "var(--text-muted)", padding: "8px" }}>
+                  + {ucs.length - 6} mais
+                </div>
+              )}
+            </div>
+          )}
+
+          {selectedUC && ucs.find(u => u.id === selectedUC) && (
+            <div style={{
+              marginTop: "1rem", padding: "1rem", background: "rgba(0,0,0,0.2)",
+              borderRadius: "10px", border: "1px solid var(--glass-border)",
+              animation: "slideUp 0.2s ease-out"
+            }}>
+              <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--primary)" }}>Detalhes</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", fontSize: "0.82rem" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Endereço:</span>
+                <span>{ucs.find(u => u.id === selectedUC)?.endereco || '—'}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: "0.82rem" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Consumo médio:</span>
+                <span>{ucs.find(u => u.id === selectedUC)?.consumo_medio_kwh || '—'} kWh</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
